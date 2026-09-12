@@ -189,3 +189,7 @@ viewer/
 - **Step 3 output is large.** Both motion JSON files together are about 500 MB. They are only an
   intermediate — once step 4 has produced the binaries you can delete them.
 - Only steps 3 and 4 are v2-specific. Steps 1 and 2 are shared with v1.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
