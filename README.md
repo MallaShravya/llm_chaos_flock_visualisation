@@ -182,8 +182,7 @@ pipeline/
   convert_motion_to_binary_v2.py          4. JSON to LLMCHS01 binary
 viewer/
   index.html
-  src/main_v2_boundary_synced.js          Three.js renderer + binary loader (the one index.html loads)
-  src/main_v2.js                          earlier renderer, kept for comparison
+  src/main_v2_boundary_synced.js          Three.js renderer + binary loader
   src/style.css
   public/                                 built trajectories land in public/data/
 ```
