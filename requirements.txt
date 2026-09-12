@@ -1,0 +1,10 @@
+# Local pipeline dependencies.
+#
+# torch / transformers / accelerate are NOT listed here on purpose: step 1 runs
+# on Modal, which builds its own remote image with those installed (see the
+# modal.Image definition at the top of pipeline/modal_qwen.py). Locally you only
+# need the Modal client.
+
+modal>=1.5,<2         # step 1: dispatches the T4 generation job
+numpy>=2.0            # steps 2-4: projection, simulation, binary packing
+ijson>=3.5            # step 4: streams the ~500 MB motion JSON without loading it into RAM

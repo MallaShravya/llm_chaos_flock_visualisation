@@ -1,0 +1,35 @@
+# ---- generated data (rebuild with the pipeline; see README) ----
+# Step 1 output is COMMITTED, not ignored: run_a.json, run_b.json and metadata.json
+# are in the repo so you can start at step 2 without a GPU. If you re-run step 1
+# with your own prompts, those three files are simply overwritten.
+
+# Step 2 output
+run_*_projected.json
+projection_matrix.npy
+projection_meta.json
+
+# Step 3 output - ~500 MB combined, never commit
+run_*_semantic_motion_v2.json
+
+# Step 4 output - the compact trajectories the viewer reads
+viewer/public/data/
+
+# ---- node ----
+node_modules/
+dist/
+.vite/
+*.log
+npm-debug.log*
+
+# ---- python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# ---- editors / os ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

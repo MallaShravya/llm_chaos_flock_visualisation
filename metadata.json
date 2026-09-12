@@ -1,0 +1,8 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "embedding_dimension": 1536,
+  "run_a_token_count": 209,
+  "run_b_token_count": 300,
+  "first_divergence": 107,
+  "prompt_difference": "Run B contains one extra trailing space after the final period."
+}
