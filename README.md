@@ -1,66 +1,167 @@
-# LLM Chaos
+# LLM Chaos — Flock Visualisation
 
-We asked a computer to write a story. Then we asked it again.
+This project turns two almost-identical LLM generations into two 3D flocks and lets their trajectories diverge.
 
-Both times we asked the exact same thing. The only difference was **one extra space** at the end
-of the question.
+The included experiment uses **Qwen2.5-1.5B-Instruct** twice with the same seed and sampling settings. The prompts differ by only one invisible trailing space:
 
-```
-Describe a bird flying over a city...goes.
-Describe a bird flying over a city...goes. 
-                                          ^
-                                   one space
+```text
+A: Describe a bird flying over a city, including what it sees below and where it eventually goes.
+B: Describe a bird flying over a city, including what it sees below and where it eventually goes. 
 ```
 
-You would expect nothing to change. But the computer wrote the same story only for a while,
-and then the two stories went completely different ways.
+The generated outputs are identical through token 106 and first diverge at token 107.
 
-| | Story A | Story B |
-|---|---|---|
-| Same for | the first 107 pieces | the first 107 pieces |
-| Then | *"workers toiling away at their desks"* | *"workers pushing heavy boxes up and down stairs"* |
-| Ending | the bird sleeps under the stars | a man talking in the distance |
+## Visualisation rules
 
-(Computers write in small pieces called **tokens** — usually a word, or part of one.)
+### Tokens become birds
 
-## The birds
+- One **generated model token** = one bird.
+- Prompt tokens are not birds. The prompt is the initial perturbation; the generated sequence is the evolving system.
+- Repeated tokens still create separate birds because they are separate token occurrences.
+- Birds remain in the flock after they are created.
 
-Every piece the computer wrote becomes a bird.
+### Semantic relationships are computed in the original embedding space
 
-Story A's pieces make one flock. Story B's pieces make another. The two flocks fly next to each
-other on the screen. For a long time they move **exactly** together — same shape, same turns.
-Then the stories split, and so do the flocks. They never fly together again.
+Each generated token uses Qwen's static input embedding.
 
-Each new bird is born outside the flock. The three birds whose words mean the most similar thing
-fly out to meet it and bring it in. So the shape of the flock is really the shape of the story.
+When a new token appears, its **3 most semantically similar earlier tokens** are found using cosine similarity in the full 1536-dimensional embedding space. The embedding angle between the new token and each of those neighbours controls how strongly that bird responds.
 
-## Try it
+A fixed seeded orthonormal projection maps embeddings to 3D only when a spatial direction is needed. The 3D projection is **not** used to decide semantic similarity.
 
-You need Python and Node. Run the first four from the main folder:
+### A new token begins outside the flock
+
+The new bird is initially stationary and external to the flock. Its spawn direction comes from the projected semantic difference between it and its semantic neighbours.
+
+The three semantic neighbours turn toward the new bird and fly slightly faster than the rest of the flock. This creates a local disturbance that can propagate through the physical flock.
+
+The newborn joins the flock once enough older birds physically reach it. It then inherits the local motion of nearby birds.
+
+### Physical flocking is local
+
+Ordinary flock motion uses the **7 nearest physical neighbours** of each bird.
+
+The physical rules combine:
+
+- heading alignment
+- weak speed alignment
+- local cohesion
+- separation / collision avoidance
+- restoration toward a common preferred speed
+
+Semantic neighbours and physical neighbours are deliberately different networks:
+
+```text
+semantic event -> 3 semantic responders -> local physical disturbance -> flock response
+```
+
+### Semantic structure persists
+
+Once a new bird joins, weak persistent semantic bonds connect it to the semantic neighbours that responded to it. These act like soft springs and let earlier semantic relationships continue to influence the flock's shape.
+
+A separate rescue-cohesion rule activates only if the flock physically breaks into disconnected components. It is a stability constraint, not a semantic force.
+
+### Tokens arrive sequentially
+
+The next token is not introduced immediately.
+
+For each token:
+
+1. the new bird appears;
+2. its semantic neighbours respond;
+3. the flock moves toward and incorporates it;
+4. the disturbance is allowed to settle;
+5. only then does the next token appear.
+
+There are deterministic safety limits so a difficult token event cannot stall the entire simulation forever.
+
+### Comparing the two runs
+
+Before the first generated-token divergence, the two simulations are identical.
+
+After divergence, they evolve independently using the same rules and constants.
+
+The viewer keeps the two sides on the same generated-token index so the comparison is always between flocks containing the same number of tokens. Playback is accelerated for viewing, but the trajectories themselves are precomputed offline.
+
+The blue flock is run A; the orange flock is run B. The newest token is shown in black, and the corresponding token is highlighted in the generated text.
+
+> The flock model is a custom, starling-inspired visual/physical system. It is not intended to be an exact biological starling model, and the semantic bonds/newborn mechanics are deliberate visualisation rules.
+
+## Reproduce the included experiment
+
+The repository already contains `run_a.json` and `run_b.json`, including the generated token IDs and embeddings, so you do **not** need a GPU or an LLM API to reproduce the included visualisation.
+
+### Requirements
+
+- Python 3 + pip
+- Node.js `20.19+` or `22.12+`
+
+### 1. Install Python dependencies
+
+From the repository root:
 
 ```bash
-pip install -r requirements.txt
-python pipeline/project_embeddings.py
-python pipeline/simulate_semantic_flock_optimized_v2.py
-python pipeline/convert_motion_to_binary_v2.py
-
-cd viewer && npm install && npm run dev
+python -m venv .venv
 ```
 
-Then open the link it prints. Step 3 takes a few minutes and makes a big file; step 4 shrinks it.
+Activate the environment, then:
 
-The two stories are already saved here (`run_a.json`, `run_b.json`), so you do **not** need a
-fancy graphics card.
+```bash
+python -m pip install -r requirements.txt
+```
 
-## Change the question
+### 2. Project the embeddings to 3D
 
-Want to see if a comma does it? Or a typo? Open `pipeline/modal_qwen.py`, change the two
-questions near the top, and run the steps again. This part needs a free
-[Modal](https://modal.com) account, because it borrows a big computer for about a minute.
+```bash
+python pipeline/project_embeddings.py
+```
 
-Fun one to try: make both questions **identical**. The two stories should then stay the same
-forever. If they don't, something in your setup is random when it shouldn't be.
+### 3. Run the flock simulation
 
-## License
+```bash
+python pipeline/simulate_semantic_flock_optimized_v2.py
+```
 
-MIT — see [LICENSE](LICENSE).
+This creates the two precomputed motion JSON files. They can be large and may take a while to generate.
+
+### 4. Convert the trajectories to compact binary files
+
+```bash
+python pipeline/convert_motion_to_binary_v2.py
+```
+
+The viewer files are written to:
+
+```text
+viewer/public/data/
+```
+
+### 5. Start the viewer
+
+```bash
+cd viewer
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite.
+
+That's it.
+
+## Regenerating the LLM outputs
+
+If you want to rerun the experiment from the model instead of using the included `run_a.json` and `run_b.json`, `pipeline/modal_qwen.py` runs Qwen2.5-1.5B-Instruct on a Modal T4 GPU and writes the results to the Modal volume `llm-chaos-output`.
+
+After installing the requirements and configuring Modal:
+
+```bash
+python -m modal setup
+python -m modal run pipeline/modal_qwen.py
+```
+
+Then download the generated files from the volume into the repository root before running the remaining pipeline steps:
+
+```bash
+modal volume get llm-chaos-output run_a.json .
+modal volume get llm-chaos-output run_b.json .
+modal volume get llm-chaos-output metadata.json .
+```
