@@ -11,6 +11,8 @@ B: Describe a bird flying over a city, including what it sees below and where it
 
 The generated outputs are identical through token 106 and first diverge at token 107.
 
+![Two flocks moving identically, then separating at token 107](divergence.gif)
+
 ## Visualisation rules
 
 ### Tokens become birds
