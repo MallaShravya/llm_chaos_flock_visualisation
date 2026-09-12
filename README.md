@@ -1,4 +1,4 @@
-# LLM Chaos — v2
+# LLM Chaos
 
 Two runs of the same model, with the same seed, on prompts that differ by **one trailing space**.
 They produce identical text for 107 tokens, then tell different stories.
