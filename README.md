@@ -94,6 +94,14 @@ parsing JSON. Produces `run_a_motion_v2.bin` (~32 MB) and `run_b_motion_v2.bin` 
 ### Step 5 — run the viewer
 
 Three.js, two linked-camera scenes. Hover a bird for its token; use rewind and play/pause to scrub.
+Each panel shows the newest token as it lands and the generated text so far.
+
+The two runs are **synced on token index, not on time**. Run A takes 1514 s of simulated time for
+209 tokens and run B takes 2299 s for 300, so playing both against one clock would drift them onto
+different tokens within seconds of the fork. Instead each run moves continuously through its own
+recorded interval for the current token, and the shorter interval is stretched just enough that both
+arrive at the next shared token boundary together — with overshoot carried forward, so there is no
+stall at the boundary. Whatever you see on the left and the right is always the same token index.
 
 ## Trying your own prompt edits
 
@@ -174,14 +182,15 @@ pipeline/
   convert_motion_to_binary_v2.py          4. JSON to LLMCHS01 binary
 viewer/
   index.html
-  src/main_v2.js                          Three.js renderer + binary loader
+  src/main_v2_boundary_synced.js          Three.js renderer + binary loader (the one index.html loads)
+  src/main_v2.js                          earlier renderer, kept for comparison
   src/style.css
   public/                                 built trajectories land in public/data/
 ```
 
 ## Notes
 
-- **Deploying to GitHub Pages needs one change.** `viewer/src/main_v2.js` fetches
+- **Deploying to GitHub Pages needs one change.** `viewer/src/main_v2_boundary_synced.js` fetches
   `/data/run_*_motion_v2.bin` with a leading slash. That resolves correctly on `npm run dev` and at
   a domain root, but a project Pages site is served from `username.github.io/<repo>/`, where those
   paths 404. Set `base` in a `vite.config.js` and make the fetch paths relative, or deploy to a
