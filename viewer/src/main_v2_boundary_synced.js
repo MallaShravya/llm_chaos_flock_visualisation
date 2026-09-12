@@ -1103,49 +1103,59 @@ async function start() {
   );
 
 
-  let highlightedGenerationToken = -1;
+  let highlightedTokenA = -1;
+  let highlightedTokenB = -1;
 
 
-  function updateGenerationHighlight(
-    tokenIndex
+  function updateGenerationHighlights(
+    tokenIndexA,
+    tokenIndexB
   ) {
     if (
-      tokenIndex ===
-      highlightedGenerationToken
+      tokenIndexA !==
+      highlightedTokenA
     ) {
-      return;
+      if (
+        highlightedTokenA >= 0
+      ) {
+        generationA.children[
+          highlightedTokenA
+        ]?.classList.remove(
+          "current-token"
+        );
+      }
+
+      generationA.children[
+        tokenIndexA
+      ]?.classList.add(
+        "current-token"
+      );
+
+      highlightedTokenA = tokenIndexA;
     }
 
     if (
-      highlightedGenerationToken >= 0
+      tokenIndexB !==
+      highlightedTokenB
     ) {
-      generationA.children[
-        highlightedGenerationToken
-      ]?.classList.remove(
-        "current-token"
-      );
+      if (
+        highlightedTokenB >= 0
+      ) {
+        generationB.children[
+          highlightedTokenB
+        ]?.classList.remove(
+          "current-token"
+        );
+      }
 
       generationB.children[
-        highlightedGenerationToken
-      ]?.classList.remove(
+        tokenIndexB
+      ]?.classList.add(
         "current-token"
       );
+
+      highlightedTokenB = tokenIndexB;
     }
-
-    generationA.children[
-      tokenIndex
-    ]?.classList.add(
-      "current-token"
-    );
-
-    generationB.children[
-      tokenIndex
-    ]?.classList.add(
-      "current-token"
-    );
-
-    highlightedGenerationToken =
-      tokenIndex;
   }
 
   console.log("Compact trajectory loaded:", {
@@ -1200,13 +1210,18 @@ async function start() {
   const birthTimesB =
     getBirthTimes(data.B);
 
-  const commonTokenCount = Math.min(
-    data.A.birds.length,
-    data.B.birds.length
+  const totalTokensA = data.A.birds.length;
+  const totalTokensB = data.B.birds.length;
+
+  const sharedTokenCount = Math.min(
+    totalTokensA,
+    totalTokensB
   );
 
   let playing = true;
+  let phase = "shared";
   let sharedTokenIndex = 0;
+  let tailTokenIndex = sharedTokenCount;
   let intervalElapsed = 0;
   let previousRealTime = performance.now();
 
@@ -1227,7 +1242,9 @@ async function start() {
   rewindButton.addEventListener(
     "click",
     () => {
+      phase = "shared";
       sharedTokenIndex = 0;
+      tailTokenIndex = sharedTokenCount;
       intervalElapsed = 0;
       playing = false;
       playPauseButton.textContent = "Play";
@@ -1260,108 +1277,286 @@ async function start() {
       intervalElapsed +=
         realDelta * PLAYBACK_SPEED;
 
-      // Both sides remain on the same generated-token index.
-      // Carry overshoot forward so there is no one-frame stop
-      // at a token boundary.
-      while (
-        sharedTokenIndex <
-        commonTokenCount
-      ) {
-        const stepA =
-          intervalForToken(
-            data.A,
-            birthTimesA,
-            sharedTokenIndex
+      if (phase === "shared") {
+        // A and B stay on the same generated-token index while
+        // both still have tokens left.
+        while (
+          sharedTokenIndex <
+          sharedTokenCount
+        ) {
+          const stepA =
+            intervalForToken(
+              data.A,
+              birthTimesA,
+              sharedTokenIndex
+            );
+
+          const stepB =
+            intervalForToken(
+              data.B,
+              birthTimesB,
+              sharedTokenIndex
+            );
+
+          const stepDuration = Math.max(
+            stepA.duration,
+            stepB.duration,
+            1e-6
           );
 
-        const stepB =
-          intervalForToken(
-            data.B,
-            birthTimesB,
-            sharedTokenIndex
-          );
+          if (
+            intervalElapsed <
+            stepDuration
+          ) {
+            break;
+          }
 
-        const stepDuration = Math.max(
-          stepA.duration,
-          stepB.duration,
-          1e-6
-        );
-
-        if (
-          intervalElapsed <
-          stepDuration
-        ) {
-          break;
-        }
-
-        if (
-          sharedTokenIndex >=
-          commonTokenCount - 1
-        ) {
-          intervalElapsed =
+          intervalElapsed -=
             stepDuration;
 
-          playing = false;
+          if (
+            sharedTokenIndex <
+            sharedTokenCount - 1
+          ) {
+            sharedTokenIndex += 1;
+            continue;
+          }
 
-          playPauseButton.textContent =
-            "Play";
+          // The shorter generation has now finished. Do not stop
+          // the longer one. Move into a one-sided tail phase.
+          if (
+            totalTokensA === totalTokensB
+          ) {
+            intervalElapsed = 0;
+            playing = false;
+            playPauseButton.textContent =
+              "Play";
+          } else {
+            phase =
+              totalTokensB > totalTokensA
+                ? "tail-b"
+                : "tail-a";
+
+            tailTokenIndex =
+              sharedTokenCount;
+          }
 
           break;
         }
+      }
 
-        intervalElapsed -=
-          stepDuration;
+      if (phase === "tail-b") {
+        while (
+          tailTokenIndex <
+          totalTokensB
+        ) {
+          const stepB =
+            intervalForToken(
+              data.B,
+              birthTimesB,
+              tailTokenIndex
+            );
 
-        sharedTokenIndex += 1;
+          const stepDuration = Math.max(
+            stepB.duration,
+            1e-6
+          );
+
+          if (
+            intervalElapsed <
+            stepDuration
+          ) {
+            break;
+          }
+
+          intervalElapsed -=
+            stepDuration;
+
+          if (
+            tailTokenIndex <
+            totalTokensB - 1
+          ) {
+            tailTokenIndex += 1;
+          } else {
+            intervalElapsed =
+              stepDuration;
+
+            playing = false;
+
+            playPauseButton.textContent =
+              "Play";
+
+            break;
+          }
+        }
+      }
+
+      if (phase === "tail-a") {
+        while (
+          tailTokenIndex <
+          totalTokensA
+        ) {
+          const stepA =
+            intervalForToken(
+              data.A,
+              birthTimesA,
+              tailTokenIndex
+            );
+
+          const stepDuration = Math.max(
+            stepA.duration,
+            1e-6
+          );
+
+          if (
+            intervalElapsed <
+            stepDuration
+          ) {
+            break;
+          }
+
+          intervalElapsed -=
+            stepDuration;
+
+          if (
+            tailTokenIndex <
+            totalTokensA - 1
+          ) {
+            tailTokenIndex += 1;
+          } else {
+            intervalElapsed =
+              stepDuration;
+
+            playing = false;
+
+            playPauseButton.textContent =
+              "Play";
+
+            break;
+          }
+        }
       }
     }
 
-    const intervalA =
-      intervalForToken(
-        data.A,
-        birthTimesA,
-        sharedTokenIndex
-      );
 
-    const intervalB =
-      intervalForToken(
-        data.B,
-        birthTimesB,
-        sharedTokenIndex
-      );
+    let timeA;
+    let timeB;
+    let tokenIndexA;
+    let tokenIndexB;
 
-    const sharedIntervalDuration =
-      Math.max(
-        intervalA.duration,
-        intervalB.duration,
-        1e-6
-      );
 
-    // Smooth sync: each run moves continuously through its
-    // recorded response for this token. The shorter interval is
-    // stretched only enough to meet the longer one at the next
-    // shared token boundary.
-    const intervalProgress =
-      THREE.MathUtils.clamp(
-        intervalElapsed /
-          sharedIntervalDuration,
-        0,
-        1
-      );
+    if (phase === "shared") {
+      const intervalA =
+        intervalForToken(
+          data.A,
+          birthTimesA,
+          sharedTokenIndex
+        );
 
-    const timeA =
-      THREE.MathUtils.lerp(
-        intervalA.start,
-        intervalA.end,
-        intervalProgress
-      );
+      const intervalB =
+        intervalForToken(
+          data.B,
+          birthTimesB,
+          sharedTokenIndex
+        );
 
-    const timeB =
-      THREE.MathUtils.lerp(
-        intervalB.start,
-        intervalB.end,
-        intervalProgress
-      );
+      const sharedIntervalDuration =
+        Math.max(
+          intervalA.duration,
+          intervalB.duration,
+          1e-6
+        );
+
+      // Smooth sync during the directly comparable part:
+      // both sides hit the next token boundary together.
+      const intervalProgress =
+        THREE.MathUtils.clamp(
+          intervalElapsed /
+            sharedIntervalDuration,
+          0,
+          1
+        );
+
+      timeA =
+        THREE.MathUtils.lerp(
+          intervalA.start,
+          intervalA.end,
+          intervalProgress
+        );
+
+      timeB =
+        THREE.MathUtils.lerp(
+          intervalB.start,
+          intervalB.end,
+          intervalProgress
+        );
+
+      tokenIndexA = sharedTokenIndex;
+      tokenIndexB = sharedTokenIndex;
+    } else if (phase === "tail-b") {
+      const intervalB =
+        intervalForToken(
+          data.B,
+          birthTimesB,
+          tailTokenIndex
+        );
+
+      const intervalProgress =
+        THREE.MathUtils.clamp(
+          intervalElapsed /
+            Math.max(
+              intervalB.duration,
+              1e-6
+            ),
+          0,
+          1
+        );
+
+      // A is complete, so hold its final recorded settled state.
+      timeA = data.A.duration;
+
+      timeB =
+        THREE.MathUtils.lerp(
+          intervalB.start,
+          intervalB.end,
+          intervalProgress
+        );
+
+      tokenIndexA = totalTokensA - 1;
+      tokenIndexB = tailTokenIndex;
+    } else {
+      const intervalA =
+        intervalForToken(
+          data.A,
+          birthTimesA,
+          tailTokenIndex
+        );
+
+      const intervalProgress =
+        THREE.MathUtils.clamp(
+          intervalElapsed /
+            Math.max(
+              intervalA.duration,
+              1e-6
+            ),
+          0,
+          1
+        );
+
+      timeA =
+        THREE.MathUtils.lerp(
+          intervalA.start,
+          intervalA.end,
+          intervalProgress
+        );
+
+      // B is complete, so hold its final recorded settled state.
+      timeB = data.B.duration;
+
+      tokenIndexA = tailTokenIndex;
+      tokenIndexB = totalTokensB - 1;
+    }
+
 
     const stateA = panelA.update(timeA);
     const stateB = panelB.update(timeB);
@@ -1393,31 +1588,48 @@ async function start() {
       desiredDistance
     );
 
-    const currentTokenCount =
-      sharedTokenIndex + 1;
-
-    updateGenerationHighlight(
-      sharedTokenIndex
+    updateGenerationHighlights(
+      tokenIndexA,
+      tokenIndexB
     );
 
+    const tokenCountA =
+      tokenIndexA + 1;
+
+    const tokenCountB =
+      tokenIndexB + 1;
+
     if (
+      phase === "shared" &&
       sharedTokenIndex <
       divergenceIndex
     ) {
       statusDisplay.textContent =
         `shared trajectory · ` +
-        `${currentTokenCount} tokens`;
-    } else {
+        `${tokenCountA} tokens`;
+    } else if (
+      phase === "shared"
+    ) {
       statusDisplay.textContent =
         `diverged at token ` +
         `${divergenceIndex} · ` +
-        `${currentTokenCount} tokens ` +
+        `${tokenCountA} tokens ` +
         `in each flock`;
+    } else if (
+      phase === "tail-b"
+    ) {
+      statusDisplay.textContent =
+        `A finished at ${totalTokensA} · ` +
+        `B ${tokenCountB} / ${totalTokensB}`;
+    } else {
+      statusDisplay.textContent =
+        `B finished at ${totalTokensB} · ` +
+        `A ${tokenCountA} / ${totalTokensA}`;
     }
 
     timeDisplay.textContent =
-      `token ${currentTokenCount} / ` +
-      `${commonTokenCount}`;
+      `A ${tokenCountA} / ${totalTokensA} · ` +
+      `B ${tokenCountB} / ${totalTokensB}`;
 
     panelA.render();
     panelB.render();
